@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/Users/nuraisyachezulkifli/Documents/automated-quranic-verification/backend/venv/bin/python",
+  "python.analysis.extraPaths": [
+    "/Users/nuraisyachezulkifli/Documents/automated-quranic-verification/backend"
+  ]
+}
