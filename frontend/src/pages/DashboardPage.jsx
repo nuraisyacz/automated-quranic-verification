@@ -33,6 +33,14 @@ const DashboardPage = () => {
 
         <DashboardCard
           icon="🔍"
+          title="Search Quranic Translation"
+          description="Search Quranic translation records by surah, ayah, or keyword from the translation database."
+          buttonText="Search Translation"
+          onButtonClick={() => navigate('/search-translation')}
+        />
+
+        <DashboardCard
+          icon="🔍"
           title="Search Quranic Text"
           description="Search verified Quranic text and translations by surah, ayah, juz, or keyword parameters."
           buttonText="Search Text"

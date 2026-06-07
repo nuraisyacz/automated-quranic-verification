@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 
 db = SQLAlchemy()
 
+
 class User(db.Model):
     __tablename__ = 'users'
 
@@ -12,7 +13,11 @@ class User(db.Model):
     password_hash = db.Column(db.String(256), nullable=False)
     role = db.Column(db.String(50), nullable=False, default='user')
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
-    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
 
     def __init__(self, full_name=None, email=None, password_hash=None, role='user'):
         if full_name is not None:
@@ -35,3 +40,39 @@ class User(db.Model):
 
     def __repr__(self):
         return f"<User {self.email} ({self.role})>"
+
+
+class QuranTranslation(db.Model):
+    __tablename__ = "quran_translations"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    surah_number = db.Column(db.Integer, nullable=False)
+    ayah_number = db.Column(db.Integer, nullable=False)
+    translation = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    def __init__(self, surah_number=None, ayah_number=None, translation=None):
+        if surah_number is not None:
+            self.surah_number = surah_number
+        if ayah_number is not None:
+            self.ayah_number = ayah_number
+        if translation is not None:
+            self.translation = translation
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "surah_number": self.surah_number,
+            "ayah_number": self.ayah_number,
+            "translation": self.translation,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None
+        }
+
+    def __repr__(self):
+        return f"<QuranTranslation Surah {self.surah_number}, Ayah {self.ayah_number}>"
