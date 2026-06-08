@@ -7,6 +7,7 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import VerifyDocumentPlaceholderPage from './pages/VerifyDocumentPlaceholderPage';
+import ExtractQuranicTextPage from './pages/ExtractQuranicTextPage';
 import SearchQuranicTextPage from './pages/SearchQuranicTextPlaceholderPage';
 import SearchTranslationPage from './pages/SearchTranslationPage';
 import './styles.css';
@@ -41,6 +42,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <VerifyDocumentPlaceholderPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/extract-text" 
+            element={
+              <ProtectedRoute>
+                <ExtractQuranicTextPage />
               </ProtectedRoute>
             } 
           />

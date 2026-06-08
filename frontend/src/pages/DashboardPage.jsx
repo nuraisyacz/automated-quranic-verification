@@ -44,7 +44,15 @@ const DashboardPage = () => {
         />
 
         <DashboardCard
-          icon="🔍"
+          icon="�️"
+          title="Extract Quranic Text"
+          description="Convert uploaded Quranic documents into extracted Arabic text and translation CSV output."
+          buttonText="Extract Text"
+          onButtonClick={() => navigate('/extract-text')}
+        />
+
+        <DashboardCard
+          icon="�🔍"
           title="Search Quranic Translation"
           description="Search Quranic translation records by surah, ayah, or keyword from the translation database."
           buttonText="Search Translation"
