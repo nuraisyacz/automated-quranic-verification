@@ -23,3 +23,7 @@ class Config:
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
+
+    # File upload configuration for temporary document verification
+    UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), 'uploads')
+    ALLOWED_UPLOAD_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt', 'csv'}

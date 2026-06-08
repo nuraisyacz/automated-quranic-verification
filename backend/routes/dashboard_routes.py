@@ -1,8 +1,11 @@
 import csv
 import os
+from uuid import uuid4
+from werkzeug.utils import secure_filename
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from models import User
+from config import Config
 
 # Load one juzuk of Quranic Arabic text for the search demo
 DATA_FILE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'quranic_text_juzuk_30.csv')
@@ -20,6 +23,57 @@ with open(DATA_FILE_PATH, encoding='utf-8') as f:
 
 # Define blueprint for dashboard routes
 dashboard_bp = Blueprint('dashboard', __name__)
+
+
+def allowed_file(filename):
+    """Return True when the filename has an allowed document extension."""
+    if not filename or '.' not in filename:
+        return False
+    extension = filename.rsplit('.', 1)[1].lower()
+    return extension in Config.ALLOWED_UPLOAD_EXTENSIONS
+
+
+@dashboard_bp.route('/verify-document', methods=['POST'])
+@jwt_required()
+def upload_quranic_document():
+    """POST /api/verify-document
+    Accepts a Quranic document upload and stores it temporarily for verification.
+    """
+    if 'document' not in request.files:
+        return jsonify({'success': False, 'message': 'No file part found in the request.'}), 400
+
+    document = request.files['document']
+    if document.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected for upload.'}), 400
+
+    if not allowed_file(document.filename):
+        allowed_types = ', '.join(sorted(Config.ALLOWED_UPLOAD_EXTENSIONS))
+        return jsonify({
+            'success': False,
+            'message': f'Unsupported file format. Allowed formats: {allowed_types}.'
+        }), 400
+
+    upload_folder = Config.UPLOAD_FOLDER
+    os.makedirs(upload_folder, exist_ok=True)
+
+    safe_filename = secure_filename(document.filename)
+    unique_filename = f"{uuid4().hex}_{safe_filename}"
+    destination_path = os.path.join(upload_folder, unique_filename)
+
+    try:
+        document.save(destination_path)
+    except Exception as exc:
+        return jsonify({
+            'success': False,
+            'message': 'Unable to save the uploaded file. Please try again.',
+            'error': str(exc)
+        }), 500
+
+    return jsonify({
+        'success': True,
+        'message': 'Document uploaded and stored temporarily for verification.',
+        'stored_filename': unique_filename
+    }), 200
 
 @dashboard_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
