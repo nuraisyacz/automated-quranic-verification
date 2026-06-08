@@ -126,7 +126,7 @@ const RegisterPage = () => {
             showPasswordRequirements
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter password
+            placeholder="Enter password"
             error={errors.password}
             required
           />
