@@ -72,9 +72,14 @@ const SearchQuranicTextPage = () => {
 
   return (
     <div className="search-page">
-      <div className="search-header">
-        <h2>Search Quranic Text</h2>
-        <p>Search Quranic text by Juz number, Surah number, Ayah number, or keyword.</p>
+      <div className="search-header-row">
+        <button type="button" className="btn btn-secondary btn-back" onClick={() => navigate('/dashboard')}>
+          ← Back to Dashboard
+        </button>
+        <div className="search-header">
+          <h2>Search Quranic Text</h2>
+          <p>Search Quranic text by Juz number, Surah number, Ayah number, or keyword.</p>
+        </div>
       </div>
 
       <div className="search-layout">
@@ -136,9 +141,6 @@ const SearchQuranicTextPage = () => {
               </button>
               <button className="btn btn-secondary" type="button" onClick={clear} disabled={loading}>
                 Clear
-              </button>
-              <button className="btn btn-secondary" type="button" onClick={() => navigate('/dashboard')}>
-                ← Back to Dashboard
               </button>
             </div>
           </form>

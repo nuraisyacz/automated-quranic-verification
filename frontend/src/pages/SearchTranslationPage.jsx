@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const isPositiveInt = (val) => {
@@ -8,6 +9,7 @@ const isPositiveInt = (val) => {
 };
 
 const SearchTranslationPage = () => {
+  const navigate = useNavigate();
   const [surah, setSurah] = useState('');
   const [ayah, setAyah] = useState('');
   const [keyword, setKeyword] = useState('');
@@ -68,9 +70,14 @@ const SearchTranslationPage = () => {
 
   return (
     <div className="search-page">
-      <div className="search-header">
-        <h2>Search Quranic Translation</h2>
-        <p>Search translations by Surah number, Ayah number, or keyword.</p>
+      <div className="search-header-row">
+        <button type="button" className="btn btn-secondary btn-back" onClick={() => navigate('/dashboard')}>
+          ← Back to Dashboard
+        </button>
+        <div className="search-header">
+          <h2>Search Quranic Translation</h2>
+          <p>Search translations by Surah number, Ayah number, or keyword.</p>
+        </div>
       </div>
 
       <div className="search-layout">
