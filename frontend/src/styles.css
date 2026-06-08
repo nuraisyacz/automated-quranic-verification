@@ -170,6 +170,75 @@ h1, h2, h3, h4, h5, h6 {
   margin-bottom: 0.5rem;
   text-transform: uppercase;
   letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Password help icon (question mark in circle) */
+.password-help-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--secondary-color);
+  border-radius: 50%;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--secondary-color);
+  cursor: help;
+  position: relative;
+  margin-left: 0.25rem;
+}
+
+.password-help-icon:hover {
+  background-color: var(--secondary-light);
+  color: var(--primary-color);
+}
+
+/* Tooltip for password requirements */
+.password-tooltip {
+  position: absolute;
+  display: none;
+  bottom: 130%;
+  left: 0;
+  background-color: var(--primary-color);
+  color: #ffffff;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  z-index: 1000;
+  box-shadow: var(--shadow-lg);
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.password-help-icon:hover .password-tooltip {
+  display: block;
+}
+
+.password-tooltip strong {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 600;
+}
+
+.password-tooltip ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.password-tooltip li {
+  padding: 0.25rem 0;
+}
+
+.password-tooltip li::before {
+  content: "✓ ";
+  margin-right: 0.25rem;
 }
 
 .form-input {
@@ -198,6 +267,54 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.8rem;
   margin-top: 0.25rem;
   font-weight: 500;
+}
+
+/* Show/Hide text toggle inside password inputs */
+.input-with-toggle {
+  position: relative;
+  display: block;
+  width: 100%;
+  max-width: none; /* allow full-width inputs to match the password field */
+  overflow: visible; /* allow the toggle to visually overflow and sit on top */
+}
+
+.form-input.with-toggle {
+  padding-right: 5.25rem; /* reserve space so text doesn't underlap the button */
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Make all inputs full-width of their container so they match visually */
+.form-input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.input-toggle-text {
+  position: absolute;
+  /* move slightly into the input border so it visually overlaps; shifted left from -8 to 6px */
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  border: 1.5px solid rgba(0,0,0,0.85);
+  background-color: #ffffff; /* white fill */
+  color: #000000; /* black text */
+  cursor: pointer;
+  line-height: 1;
+  height: 36px; /* match typical input height so it overlaps */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 12; /* ensure it sits on top of the input */
+  /* removed box-shadow to match requested flat appearance */
+}
+
+.input-toggle-text:focus {
+  outline: 2px solid rgba(64,145,108,0.12);
+  border-radius: 6px;
 }
 
 /* Alert Boxes */

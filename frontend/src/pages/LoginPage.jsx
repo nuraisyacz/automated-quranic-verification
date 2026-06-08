@@ -88,6 +88,7 @@ const LoginPage = () => {
             label="Password"
             id="password"
             type="password"
+            togglePassword
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"

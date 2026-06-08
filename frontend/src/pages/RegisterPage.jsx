@@ -122,9 +122,11 @@ const RegisterPage = () => {
             label="Password"
             id="password"
             type="password"
+            togglePassword
+            showPasswordRequirements
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Min. 8 chars, uppercase, lowercase, number & symbol"
+            placeholder="Enter password
             error={errors.password}
             required
           />
@@ -133,6 +135,7 @@ const RegisterPage = () => {
             label="Confirm Password"
             id="confirmPassword"
             type="password"
+            togglePassword
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="Re-enter password"
