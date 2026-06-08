@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
 
 const isPositiveInt = (val) => {
   if (val === null || val === undefined || val === '') return false;
@@ -8,12 +7,11 @@ const isPositiveInt = (val) => {
   return Number.isInteger(n) && n > 0;
 };
 
-const SearchQuranicTextPage = () => {
-  const navigate = useNavigate();
+const SearchTranslationPage = () => {
   const [surah, setSurah] = useState('');
   const [ayah, setAyah] = useState('');
-  const [juz, setJuz] = useState('30');
   const [keyword, setKeyword] = useState('');
+  const [language, setLanguage] = useState('bahasa');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [results, setResults] = useState([]);
@@ -36,35 +34,33 @@ const SearchQuranicTextPage = () => {
 
     const hasSurah = isPositiveInt(surah);
     const hasAyah = isPositiveInt(ayah);
-    const hasJuz = isPositiveInt(juz);
     const kw = keyword.trim();
 
-    if (!hasSurah && !hasAyah && !hasJuz && kw === '') {
-      setError('Please provide at least one search criteria.');
+    if (!hasSurah && !hasAyah && kw === '') {
+      setError('Please enter at least one search criteria.');
       return;
     }
 
     const params = {};
     if (hasSurah) params.surah_number = Number(surah);
     if (hasAyah) params.ayah_number = Number(ayah);
-    if (hasJuz) params.juz_number = Number(juz);
     if (kw !== '') params.keyword = kw;
 
     setLoading(true);
     try {
-      const resp = await axios.get('/api/search-quranic-text', { params });
+      const resp = await axios.get('/api/quran/search', { params });
       if (resp.data && resp.data.success) {
         if (resp.data.count === 0) {
           setResults([]);
-          setStatusMessage('No matching Quranic text found.');
+          setStatusMessage('No matching translation found.');
         } else {
           setResults(resp.data.results || []);
         }
       } else {
-        setError(resp.data?.message || 'Unexpected response from server.');
+        setError(resp.data?.message || 'Unexpected response');
       }
     } catch (err) {
-      setError(err.response?.data?.message || 'Request failed.');
+      setError(err.response?.data?.message || 'Request failed');
     } finally {
       setLoading(false);
     }
@@ -73,8 +69,8 @@ const SearchQuranicTextPage = () => {
   return (
     <div className="search-page">
       <div className="search-header">
-        <h2>Search Quranic Text</h2>
-        <p>Search Quranic text by Juz number, Surah number, Ayah number, or keyword.</p>
+        <h2>Search Quranic Translation</h2>
+        <p>Search translations by Surah number, Ayah number, or keyword.</p>
       </div>
 
       <div className="search-layout">
@@ -82,14 +78,26 @@ const SearchQuranicTextPage = () => {
           <h3>Search Criteria</h3>
           <form onSubmit={handleSearch} className="search-form">
             <div className="form-group">
-              <label className="form-label">Juz Number</label>
+              <label className="form-label">Language</label>
+              <select
+                className="form-input"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+              >
+                <option value="english" disabled>
+                  English (not available)
+                </option>
+                <option value="bahasa">Bahasa Melayu</option>
+              </select>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Keyword</label>
               <input
                 className="form-input"
-                type="number"
-                min="1"
-                value={juz}
-                onChange={(e) => setJuz(e.target.value)}
-                placeholder="e.g. 30"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Enter keyword"
               />
             </div>
 
@@ -102,7 +110,7 @@ const SearchQuranicTextPage = () => {
                   min="1"
                   value={surah}
                   onChange={(e) => setSurah(e.target.value)}
-                  placeholder="e.g. 112"
+                  placeholder="e.g. 27"
                 />
               </div>
               <div className="form-group">
@@ -113,19 +121,9 @@ const SearchQuranicTextPage = () => {
                   min="1"
                   value={ayah}
                   onChange={(e) => setAyah(e.target.value)}
-                  placeholder="e.g. 4"
+                  placeholder="e.g. 55"
                 />
               </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Keyword</label>
-              <input
-                className="form-input"
-                value={keyword}
-                onChange={(e) => setKeyword(e.target.value)}
-                placeholder="Search Arabic text or surah name"
-              />
             </div>
 
             {error && <div className="alert alert-danger">{error}</div>}
@@ -136,9 +134,6 @@ const SearchQuranicTextPage = () => {
               </button>
               <button className="btn btn-secondary" type="button" onClick={clear} disabled={loading}>
                 Clear
-              </button>
-              <button className="btn btn-secondary" type="button" onClick={() => navigate('/dashboard')}>
-                ← Back to Dashboard
               </button>
             </div>
           </form>
@@ -153,15 +148,13 @@ const SearchQuranicTextPage = () => {
             )}
             {results.length > 0 && (
               <div className="translation-results-list">
-                {results.map((item) => (
-                  <div key={`${item.surah_number}-${item.ayah_number}`} className="translation-result-card">
+                {results.map((r) => (
+                  <div key={`${r.surah_number}-${r.ayah_number}`} className="translation-result-card">
                     <div className="translation-result-meta">
-                      <span>Juz: {item.juz_number}</span>
-                      <span>Surah: {item.surah_number}</span>
-                      <span>Ayah: {item.ayah_number}</span>
-                      <span>{item.surah_name}</span>
+                      <span>Surah: {r.surah_number}</span>
+                      <span>Ayah: {r.ayah_number}</span>
                     </div>
-                    <p style={{ fontSize: '1.25rem', lineHeight: '1.8', textAlign: 'right' }}>{item.arabic_text}</p>
+                    <p>{r.translation}</p>
                   </div>
                 ))}
               </div>
@@ -173,4 +166,4 @@ const SearchQuranicTextPage = () => {
   );
 };
 
-export default SearchQuranicTextPage;
+export default SearchTranslationPage;

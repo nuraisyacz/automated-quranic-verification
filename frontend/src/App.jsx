@@ -7,7 +7,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import VerifyDocumentPlaceholderPage from './pages/VerifyDocumentPlaceholderPage';
-import SearchQuranicTextPlaceholderPage from './pages/SearchQuranicTextPlaceholderPage';
+import SearchQuranicTextPage from './pages/SearchQuranicTextPlaceholderPage';
+import SearchTranslationPage from './pages/SearchTranslationPage';
 import './styles.css';
 
 /**
@@ -47,7 +48,15 @@ function App() {
             path="/search-text" 
             element={
               <ProtectedRoute>
-                <SearchQuranicTextPlaceholderPage />
+                <SearchQuranicTextPage />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/search-translation" 
+            element={
+              <ProtectedRoute>
+                <SearchTranslationPage />
               </ProtectedRoute>
             } 
           />

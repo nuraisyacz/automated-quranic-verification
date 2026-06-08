@@ -6,6 +6,7 @@ from config import Config
 from models import db
 from routes.auth_routes import auth_bp
 from routes.dashboard_routes import dashboard_bp
+from routes.quran_routes import quran_bp
 
 def create_app():
     """
@@ -48,6 +49,7 @@ def create_app():
     # Register blueprints (routing modules)
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/api')
+    app.register_blueprint(quran_bp, url_prefix='/api/quran')
 
     # Basic root route for verification
     @app.route('/', methods=['GET'])
