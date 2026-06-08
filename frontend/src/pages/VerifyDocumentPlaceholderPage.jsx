@@ -58,6 +58,13 @@ const VerifyDocumentPlaceholderPage = () => {
       });
 
       if (response.data?.success) {
+        const uploadRecord = {
+          original_name: selectedFile.name,
+          stored_filename: response.data.stored_filename,
+          uploaded_at: new Date().toISOString()
+        };
+        localStorage.setItem('lastUploadedDocument', JSON.stringify(uploadRecord));
+
         setSuccessMessage(response.data.message || 'File uploaded successfully.');
         setSelectedFile(null);
         event.target.reset();

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import DashboardCard from '../components/DashboardCard';
@@ -10,6 +10,18 @@ import DashboardCard from '../components/DashboardCard';
 const DashboardPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [recentUpload, setRecentUpload] = useState(null);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('lastUploadedDocument');
+    if (stored) {
+      try {
+        setRecentUpload(JSON.parse(stored));
+      } catch {
+        setRecentUpload(null);
+      }
+    }
+  }, []);
 
   return (
     <div className="dashboard-container">
@@ -46,6 +58,26 @@ const DashboardPage = () => {
           buttonText="Search Text"
           onButtonClick={() => navigate('/search-text')}
         />
+
+        {recentUpload && (
+          <div className="dashboard-card upload-preview-card">
+            <div className="card-content">
+              <h3 className="card-title">
+                <span className="card-icon">📝</span> Recent Upload
+              </h3>
+              <p className="card-description">
+                Last uploaded document:
+                <strong> {recentUpload.original_name}</strong>
+              </p>
+              <p className="card-description">
+                Uploaded on: {new Date(recentUpload.uploaded_at).toLocaleString()}
+              </p>
+            </div>
+            <button className="btn btn-primary" onClick={() => navigate('/verify-document')}>
+              Upload Another
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
