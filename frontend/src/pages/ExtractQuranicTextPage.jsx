@@ -36,6 +36,10 @@ const ExtractQuranicTextPage = () => {
     try {
       const response = await axios.post('/api/extract-document', {
         stored_filename: uploadInfo.stored_filename
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
 
       if (response.data?.success) {

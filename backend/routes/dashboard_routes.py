@@ -26,6 +26,10 @@ with open(DATA_FILE_PATH, encoding='utf-8') as f:
 dashboard_bp = Blueprint('dashboard', __name__)
 
 
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
+
 def allowed_file(filename):
     """Return True when the filename has an allowed document extension."""
     if not filename or '.' not in filename:
@@ -35,24 +39,28 @@ def allowed_file(filename):
 
 
 def is_arabic_text(value):
+    """Check if a string contains Arabic characters."""
     if not value:
         return False
     return bool(re.search(r'[\u0600-\u06FF]', value))
 
 
 def is_translation_text(value):
+    """Check if a string contains Latin characters."""
     if not value:
         return False
     return bool(re.search(r'[A-Za-z]', value))
 
 
 def make_safe_output_filename(source_filename):
+    """Generate a safe output filename for extracted CSV."""
     base_name = secure_filename(source_filename) if source_filename else 'extracted'
     name, _ = os.path.splitext(base_name)
     return f"{name}_extracted_{uuid4().hex}.csv"
 
 
 def extract_rows_from_csv(file_path):
+    """Extract Arabic text and translation from a CSV file."""
     rows = []
     with open(file_path, encoding='utf-8', errors='replace') as f:
         reader = csv.DictReader(f)
@@ -63,6 +71,7 @@ def extract_rows_from_csv(file_path):
             row_keys = {k.strip().lower() for k in row.keys() if k}
             arabic_text = ''
             translation_text = ''
+            
             for key in row_keys:
                 if key in potential_arabic_keys:
                     arabic_text = row.get(key, '').strip()
@@ -92,6 +101,7 @@ def extract_rows_from_csv(file_path):
 
 
 def extract_rows_from_text(file_path):
+    """Extract Arabic text and translation from a text file."""
     rows = []
     with open(file_path, encoding='utf-8', errors='replace') as f:
         lines = [line.strip() for line in f.readlines() if line.strip()]
@@ -127,6 +137,7 @@ def extract_rows_from_text(file_path):
 
 
 def write_extracted_csv(rows, output_path):
+    """Write extracted rows to a CSV file."""
     with open(output_path, 'w', encoding='utf-8', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=['arabic_text', 'translation'])
         writer.writeheader()
@@ -137,89 +148,43 @@ def write_extracted_csv(rows, output_path):
             })
 
 
+# ============================================================================
+# ROUTES
+# ============================================================================
+
+@dashboard_bp.route('/dashboard', methods=['GET'])
+@jwt_required()
+def get_dashboard():
+    """
+    GET /api/dashboard
+    Protected route returning welcome information.
+    """
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    if not user:
+        return jsonify({'message': 'Unauthorized'}), 401
+        
+    return jsonify({
+        'welcome_message': f"Welcome, {user.full_name}",
+        'description': "This system helps verify digital Quranic text and translations using trusted reference data.",
+        'user': user.to_dict()
+    }), 200
+
+
 @dashboard_bp.route('/verify-document', methods=['GET'])
 @jwt_required()
-def verify_document_placeholder():
-    """
-    GET /api/verify-document
-    Protected placeholder route.
-    """
+def verify_document_get():
+    """GET /api/verify-document - Returns info about the verification module."""
     return jsonify({
-        'message': 'Document verification module will be developed in the next phase.'
+        'message': 'Document verification module. Use POST to upload documents.'
     }), 200
-
-
-@dashboard_bp.route('/extracted-file/<path:filename>', methods=['GET'])
-@jwt_required()
-def serve_extracted_file(filename):
-    """Serve extracted CSV files from the uploads directory."""
-    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
-        return jsonify({'success': False, 'message': 'Invalid filename.'}), 400
-
-    return send_from_directory(Config.UPLOAD_FOLDER, filename, as_attachment=False, mimetype='text/csv')
-
-
-@dashboard_bp.route('/extract-document', methods=['POST'])
-@jwt_required()
-def extract_uploaded_document():
-    """Extract Arabic Quranic text and translation from an uploaded document."""
-    payload = request.get_json(silent=True) or {}
-    stored_filename = payload.get('stored_filename')
-
-    if not stored_filename:
-        return jsonify({'success': False, 'message': 'Stored filename is required for extraction.'}), 400
-
-    if '..' in stored_filename or '/' in stored_filename or '\\' in stored_filename:
-        return jsonify({'success': False, 'message': 'Invalid stored filename.'}), 400
-
-    upload_folder = Config.UPLOAD_FOLDER
-    source_path = os.path.join(upload_folder, secure_filename(stored_filename))
-    if not os.path.exists(source_path):
-        return jsonify({'success': False, 'message': 'Uploaded document not found.'}), 404
-
-    extension = stored_filename.rsplit('.', 1)[-1].lower()
-    extracted_rows = []
-
-    if extension == 'csv':
-        extracted_rows = extract_rows_from_csv(source_path)
-    elif extension == 'txt':
-        extracted_rows = extract_rows_from_text(source_path)
-    else:
-        try:
-            extracted_rows = extract_rows_from_text(source_path)
-        except Exception:
-            extracted_rows = []
-
-    if not extracted_rows:
-        return jsonify({
-            'success': False,
-            'message': 'Unable to extract Quranic text and translation from the uploaded document.'
-        }), 400
-
-    output_filename = make_safe_output_filename(stored_filename)
-    output_path = os.path.join(upload_folder, output_filename)
-    write_extracted_csv(extracted_rows, output_path)
-
-    return jsonify({
-        'success': True,
-        'message': 'Extraction completed. The CSV file is ready to view.',
-        'extracted_count': len(extracted_rows),
-        'download_url': f'/api/extracted-file/{output_filename}'
-    }), 200
-
-
-def allowed_file(filename):
-    """Return True when the filename has an allowed document extension."""
-    if not filename or '.' not in filename:
-        return False
-    extension = filename.rsplit('.', 1)[1].lower()
-    return extension in Config.ALLOWED_UPLOAD_EXTENSIONS
 
 
 @dashboard_bp.route('/verify-document', methods=['POST'])
 @jwt_required()
 def upload_quranic_document():
-    """POST /api/verify-document
+    """
+    POST /api/verify-document
     Accepts a Quranic document upload and stores it temporarily for verification.
     """
     if 'document' not in request.files:
@@ -258,34 +223,66 @@ def upload_quranic_document():
         'stored_filename': unique_filename
     }), 200
 
-@dashboard_bp.route('/dashboard', methods=['GET'])
+
+@dashboard_bp.route('/extracted-file/<path:filename>', methods=['GET'])
 @jwt_required()
-def get_dashboard():
-    """
-    GET /api/dashboard
-    Protected route returning welcome information.
-    """
-    current_user_id = get_jwt_identity()
-    user = User.query.get(current_user_id)
-    if not user:
-        return jsonify({'message': 'Unauthorized'}), 401
-        
-    return jsonify({
-        'welcome_message': f"Welcome, {user.full_name}",
-        'description': "This system helps verify digital Quranic text and translations using trusted reference data.",
-        'user': user.to_dict()
-    }), 200
+def serve_extracted_file(filename):
+    """GET /api/extracted-file/<filename> - Serve extracted CSV files."""
+    if '..' in filename or filename.startswith('/') or filename.startswith('\\'):
+        return jsonify({'success': False, 'message': 'Invalid filename.'}), 400
+
+    return send_from_directory(Config.UPLOAD_FOLDER, filename, as_attachment=False, mimetype='text/csv')
 
 
-@dashboard_bp.route('/verify-document', methods=['GET'])
+@dashboard_bp.route('/extract-document', methods=['POST'])
 @jwt_required()
-def verify_document_placeholder():
+def extract_document():
     """
-    GET /api/verify-document
-    Protected placeholder route.
+    POST /api/extract-document
+    Extract Arabic Quranic text and translation from an uploaded document.
     """
+    payload = request.get_json(silent=True) or {}
+    stored_filename = payload.get('stored_filename')
+
+    if not stored_filename:
+        return jsonify({'success': False, 'message': 'Stored filename is required for extraction.'}), 400
+
+    if '..' in stored_filename or '/' in stored_filename or '\\' in stored_filename:
+        return jsonify({'success': False, 'message': 'Invalid stored filename.'}), 400
+
+    upload_folder = Config.UPLOAD_FOLDER
+    source_path = os.path.join(upload_folder, stored_filename)
+    if not os.path.exists(source_path):
+        return jsonify({'success': False, 'message': 'Uploaded document not found.'}), 404
+
+    extension = stored_filename.rsplit('.', 1)[-1].lower()
+    extracted_rows = []
+
+    if extension == 'csv':
+        extracted_rows = extract_rows_from_csv(source_path)
+    elif extension == 'txt':
+        extracted_rows = extract_rows_from_text(source_path)
+    else:
+        try:
+            extracted_rows = extract_rows_from_text(source_path)
+        except Exception:
+            extracted_rows = []
+
+    if not extracted_rows:
+        return jsonify({
+            'success': False,
+            'message': 'Unable to extract Quranic text and translation from the uploaded document.'
+        }), 400
+
+    output_filename = make_safe_output_filename(stored_filename)
+    output_path = os.path.join(upload_folder, output_filename)
+    write_extracted_csv(extracted_rows, output_path)
+
     return jsonify({
-        'message': 'Document verification module will be developed in the next phase.'
+        'success': True,
+        'message': 'Extraction completed. The CSV file is ready to view.',
+        'extracted_count': len(extracted_rows),
+        'download_url': f'/api/extracted-file/{output_filename}'
     }), 200
 
 
