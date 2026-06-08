@@ -98,6 +98,16 @@ const SearchQuranicTextPage = () => {
               />
             </div>
 
+            <div className="form-group">
+              <label className="form-label">Keyword</label>
+              <input
+                className="form-input"
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="Search Arabic text or surah name"
+              />
+            </div>
+
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Surah Number</label>
@@ -123,7 +133,7 @@ const SearchQuranicTextPage = () => {
               </div>
             </div>
 
-            <div className="form-group">
+            {/* <div className="form-group">
               <label className="form-label">Keyword</label>
               <input
                 className="form-input"
@@ -131,7 +141,7 @@ const SearchQuranicTextPage = () => {
                 onChange={(e) => setKeyword(e.target.value)}
                 placeholder="Search Arabic text or surah name"
               />
-            </div>
+            </div> */}
 
             {error && <div className="alert alert-danger">{error}</div>}
 
