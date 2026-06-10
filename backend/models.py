@@ -76,3 +76,39 @@ class QuranTranslation(db.Model):
 
     def __repr__(self):
         return f"<QuranTranslation Surah {self.surah_number}, Ayah {self.ayah_number}>"
+
+
+class QuranArabicText(db.Model):
+    """
+    Trusted reference repository for Quranic Arabic text verification.
+    Placeholder model — partner can populate via CSV import (import-arabic-csv endpoint).
+    """
+    __tablename__ = "quran_arabic_text"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    juz_number = db.Column(db.Integer, nullable=True)
+    surah_number = db.Column(db.Integer, nullable=False)
+    surah_name = db.Column(db.String(100), nullable=True)
+    ayah_number = db.Column(db.Integer, nullable=False)
+    arabic_text = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(
+        db.DateTime,
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "juz_number": self.juz_number,
+            "surah_number": self.surah_number,
+            "surah_name": self.surah_name,
+            "ayah_number": self.ayah_number,
+            "arabic_text": self.arabic_text,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+    def __repr__(self):
+        return f"<QuranArabicText Surah {self.surah_number}, Ayah {self.ayah_number}>"

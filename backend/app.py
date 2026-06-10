@@ -7,6 +7,8 @@ from models import db
 from routes.auth_routes import auth_bp
 from routes.dashboard_routes import dashboard_bp
 from routes.quran_routes import quran_bp
+from routes.verification_routes import verification_bp
+from utils.seed_data import seed_reference_translations, seed_reference_arabic_text
 
 def create_app():
     """
@@ -50,6 +52,7 @@ def create_app():
     app.register_blueprint(auth_bp, url_prefix='/api/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/api')
     app.register_blueprint(quran_bp, url_prefix='/api/quran')
+    app.register_blueprint(verification_bp, url_prefix='/api')
 
     # Basic root route for verification
     @app.route('/', methods=['GET'])
@@ -64,7 +67,13 @@ def create_app():
     with app.app_context():
         try:
             db.create_all()
+            seed_result = seed_reference_translations()
+            arabic_seed_result = seed_reference_arabic_text()
             print("Successfully verified PostgreSQL connection and initialized tables.")
+            if seed_result.get('inserted'):
+                print(f"Seeded {seed_result['inserted']} reference translation rows.")
+            if arabic_seed_result.get('inserted'):
+                print(f"Seeded {arabic_seed_result['inserted']} reference Arabic text rows.")
         except Exception as e:
             print("\n" + "="*80, file=sys.stderr)
             print("DATABASE SETUP WARNING:", file=sys.stderr)
