@@ -12,7 +12,7 @@ const SearchQuranicTextPage = () => {
   const navigate = useNavigate();
   const [surah, setSurah] = useState('');
   const [ayah, setAyah] = useState('');
-  const [juz, setJuz] = useState('30');
+  const [juz, setJuz] = useState('');
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -22,6 +22,7 @@ const SearchQuranicTextPage = () => {
   const clear = () => {
     setSurah('');
     setAyah('');
+    setJuz('');
     setKeyword('');
     setResults([]);
     setError('');
@@ -52,7 +53,19 @@ const SearchQuranicTextPage = () => {
 
     setLoading(true);
     try {
-      const resp = await axios.get('/api/search-quranic-text', { params });
+      const token = localStorage.getItem('token');
+
+      const resp = await axios.get(
+        'http://localhost:5001/api/search-quranic-text',
+        {
+          params,
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+      // const resp = await axios.get('http://localhost:5001/api/search-quranic-text', { params });
+      // const resp = await axios.get('/api/search-quranic-text', { params });
       if (resp.data && resp.data.success) {
         if (resp.data.count === 0) {
           setResults([]);
