@@ -43,7 +43,7 @@ class User(db.Model):
 
 
 class QuranTranslation(db.Model):
-    __tablename__ = "quran_translations"
+    __tablename__ = "quran_translation_bm"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     surah_number = db.Column(db.Integer, nullable=False)

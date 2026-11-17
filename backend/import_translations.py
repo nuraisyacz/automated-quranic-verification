@@ -3,7 +3,7 @@ import os
 from app import app
 from models import db, QuranTranslation
 
-CSV_FILE_PATH = "data/translation_malay_juzuk_29.csv"
+CSV_FILE_PATH = "data/juzuk 1 until 30 tafsir ar-rahman.csv"
 
 def import_translations():
     print("Starting translation import...")

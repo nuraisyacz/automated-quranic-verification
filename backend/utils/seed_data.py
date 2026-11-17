@@ -10,7 +10,7 @@ DATA_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 # Primary reference: Malay translation (Juz 29) — sourced from approved translation dataset.
 # Partners can add more CSV files to REFERENCE_CSV_FILES or use POST /api/quran/import-csv.
 REFERENCE_CSV_FILES = [
-    os.path.join(DATA_DIR, 'translation_malay_juzuk_29.csv'),
+    os.path.join(DATA_DIR, 'juzuk 1 until 30 tafsir ar-rahman.csv'),
 ]
 
 ARABIC_REFERENCE_CSV_FILES = [
