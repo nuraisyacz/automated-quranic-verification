@@ -77,16 +77,21 @@ def classify_overall_status(accuracy_percentage: float) -> str:
 
 
 def normalize_arabic_text(text: str) -> str:
-    """Normalize Arabic Quranic text: remove diacritics, unify letter forms, collapse space."""
+    """Normalize Arabic Quranic text consistently across system."""
     if not text:
         return ''
+
     normalized = ARABIC_DIACRITICS.sub('', text)
-    normalized = normalized.replace('\u0640', '')
+    normalized = normalized.replace('\u0640', '')  # tatweel
+
+    # unify Arabic letters (IMPORTANT: match frontend)
     normalized = re.sub(r'[إأآٱ]', 'ا', normalized)
     normalized = re.sub(r'ى', 'ي', normalized)
     normalized = re.sub(r'ة', 'ه', normalized)
+
     normalized = re.sub(r'[^\u0600-\u06FF\s]', '', normalized)
     normalized = re.sub(r'\s+', ' ', normalized).strip()
+
     return normalized
 
 
@@ -139,111 +144,144 @@ def _verify_content_rows(
     missing_reference_message: str,
     missing_content_message: str,
 ) -> dict[str, Any]:
-    details: list[dict[str, Any]] = []
+
+    details = []
+
     exact_matches = 0
     partial_matches = 0
     mismatches = 0
     reference_not_found = 0
     invalid_rows = 0
-    similarity_scores: list[float] = []
+
+    similarity_scores = []
+
+    BISMILLAH = "بِسْمِ اللَّهِ الرَّحْمَـٰنِ الرَّحِيمِ"
+
+    def is_bismillah(text: str) -> bool:
+        return "بسم" in normalize_arabic_text(text)
+
+    def strip_bismillah(text: str) -> str:
+        if not text:
+            return ""
+        if is_bismillah(text):
+            return ""
+        return text
 
     for row in uploaded_rows:
+
+        # -------------------------
+        # Validate surah / ayah
+        # -------------------------
         try:
             surah = int(row.get('surah_number') or 0)
             ayah = int(row.get('ayah_number') or 0)
-        except (TypeError, ValueError):
+        except:
             invalid_rows += 1
-            details.append({
-                'surah_number': row.get('surah_number'),
-                'ayah_number': row.get('ayah_number'),
-                'status': 'invalid_row',
-                'uploaded_text': row.get(content_field, ''),
-                'reference_text': None,
-                'similarity_percentage': 0,
-                'differences': {'missing_words': [], 'extra_words': [], 'changed_segments': []},
-                'message': 'Invalid surah or ayah number.',
-            })
             continue
 
         uploaded_text = (row.get(content_field) or '').strip()
+
+        # -------------------------
+        # Normalize Arabic if needed
+        # -------------------------
+        if content_field == 'arabic_text':
+            uploaded_text = normalize_arabic_text(uploaded_text)
+
+        # -------------------------
+        # Skip invalid rows
+        # -------------------------
         if not uploaded_text or surah <= 0 or ayah <= 0:
             invalid_rows += 1
-            details.append({
-                'surah_number': surah,
-                'ayah_number': ayah,
-                'status': 'invalid_row',
-                'uploaded_text': uploaded_text,
-                'reference_text': None,
-                'similarity_percentage': 0,
-                'differences': {'missing_words': [], 'extra_words': [], 'changed_segments': []},
-                'message': missing_content_message,
-            })
             continue
 
+        # -------------------------
+        # 🔥 REMOVE BISMILLAH ROW COMPLETELY
+        # -------------------------
+        if content_field == 'arabic_text' and is_bismillah(uploaded_text):
+            continue
+
+        # -------------------------
+        # Reference lookup
+        # -------------------------
         reference_text = reference_lookup.get((surah, ayah))
+
         if reference_text is None:
             reference_not_found += 1
             details.append({
-                'surah_number': surah,
-                'ayah_number': ayah,
-                'status': 'reference_not_found',
-                'uploaded_text': uploaded_text,
-                'reference_text': None,
-                'similarity_percentage': 0,
-                'differences': {'missing_words': [], 'extra_words': [], 'changed_segments': []},
-                'message': missing_reference_message,
+                "surah_number": surah,
+                "ayah_number": ayah,
+                "status": "reference_not_found",
+                "uploaded_text": strip_bismillah(uploaded_text),
+                "reference_text": None,
+                "similarity_percentage": 0,
+                "differences": {},
+                "message": missing_reference_message,
             })
             continue
 
+        # -------------------------
+        # Compare
+        # -------------------------
         sim = compare_fn(uploaded_text, reference_text)
-        sim_pct = round(sim * 100, 2)
-        status = classify_row_status(sim)
         diff = diff_fn(uploaded_text, reference_text)
+
         similarity_scores.append(sim)
 
-        if status == 'accurate':
+        if sim >= 0.98:
+            status = "accurate"
             exact_matches += 1
-        elif status == 'partially_accurate':
+        elif sim >= 0.70:
+            status = "partially_accurate"
             partial_matches += 1
         else:
+            status = "inaccurate"
             mismatches += 1
 
+        # -------------------------
+        # Store result
+        # -------------------------
         details.append({
-            'surah_number': surah,
-            'ayah_number': ayah,
-            'status': status,
-            'uploaded_text': uploaded_text,
-            'reference_text': reference_text,
-            'similarity_percentage': sim_pct,
-            'differences': diff,
-            'message': _status_message(status, diff, accurate_message),
+            "surah_number": surah,
+            "ayah_number": ayah,
+            "status": status,
+
+            # CLEAN OUTPUT (safe for UI)
+            "uploaded_text": strip_bismillah(uploaded_text),
+            "reference_text": reference_text,
+
+            "similarity_percentage": round(sim * 100, 2),
+            "differences": diff,
+            "message": accurate_message if status == "accurate" else "Mismatch detected",
         })
 
-    compared = exact_matches + partial_matches + mismatches
-    if compared > 0:
-        weighted_sum = exact_matches * 100 + partial_matches * 75 + mismatches * 0
-        accuracy_percentage = round(weighted_sum / compared, 2)
-    else:
-        accuracy_percentage = 0.0
+    # -------------------------
+    # Summary
+    # -------------------------
+    total = exact_matches + partial_matches + mismatches
 
-    avg_similarity = round(
-        (sum(similarity_scores) / len(similarity_scores)) * 100, 2
-    ) if similarity_scores else 0.0
+    accuracy = (
+        round((sum(similarity_scores) / len(similarity_scores)) * 100, 2)
+        if similarity_scores else 0
+    )
+
+    avg_similarity = (
+        round((sum(similarity_scores) / len(similarity_scores)) * 100, 2)
+        if similarity_scores else 0
+    )
 
     return {
-        'summary': {
-            'total_uploaded_rows': len(uploaded_rows),
-            'total_compared': compared,
-            'exact_matches': exact_matches,
-            'partial_matches': partial_matches,
-            'mismatches': mismatches,
-            'reference_not_found': reference_not_found,
-            'invalid_rows': invalid_rows,
-            'accuracy_percentage': accuracy_percentage,
-            'average_similarity_percentage': avg_similarity,
-            'verification_status': classify_overall_status(accuracy_percentage),
+        "summary": {
+            "total_uploaded_rows": len(uploaded_rows),
+            "total_compared": total,
+            "exact_matches": exact_matches,
+            "partial_matches": partial_matches,
+            "mismatches": mismatches,
+            "reference_not_found": reference_not_found,
+            "invalid_rows": invalid_rows,
+            "accuracy_percentage": accuracy,
+            "average_similarity_percentage": avg_similarity,
         },
-        'details': details,
+        "details": details,
     }
 
 

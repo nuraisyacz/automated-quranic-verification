@@ -145,5 +145,5 @@ def build_arabic_reference_lookup() -> dict[tuple[int, int], str]:
     """Build a lookup dict from all reference Arabic text in the database."""
     lookup: dict[tuple[int, int], str] = {}
     for row in QuranArabicText.query.all():
-        lookup[(row.surah_number, row.ayah_number)] = row.arabic_text
+        lookup[(row.surah_number, row.ayah_number)] = row.clean_arabic_text
     return lookup

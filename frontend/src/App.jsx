@@ -9,6 +9,7 @@ import DashboardPage from './pages/DashboardPage';
 import VerifyDocumentPlaceholderPage from './pages/VerifyDocumentPlaceholderPage';
 import SearchQuranicTextPage from './pages/SearchQuranicTextPlaceholderPage';
 import SearchTranslationPage from './pages/SearchTranslationPage';
+import CertificateCheck from './pages/CertificateCheck';
 import './styles.css';
 
 /**
@@ -26,7 +27,8 @@ function App() {
           {/* Public Routes */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          
+          <Route path="/certificate/:ref" element={<CertificateCheck />} />
+                    
           {/* Protected Routes (requires authentication) */}
           <Route 
             path="/dashboard" 

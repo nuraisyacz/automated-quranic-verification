@@ -97,6 +97,7 @@ class QuranArabicText(db.Model):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc)
     )
+    clean_arabic_text = db.Column(db.Text, nullable=True)
 
     def to_dict(self):
         return {
@@ -112,3 +113,53 @@ class QuranArabicText(db.Model):
 
     def __repr__(self):
         return f"<QuranArabicText Surah {self.surah_number}, Ayah {self.ayah_number}>"
+
+class VerificationCertificate(db.Model):
+    """One row per completed Quranic text verification. The certificate PDF is always
+    generated from this stored record, never from data posted by the browser."""
+    __tablename__ = "verification_certificates"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    reference_no = db.Column(db.String(32), unique=True, nullable=False, index=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.user_id'), nullable=True)
+    filename = db.Column(db.String(255), nullable=False)
+    verification_type = db.Column(db.String(30), nullable=False, default='quranic_text')
+    status = db.Column(db.String(30), nullable=False)
+    scope = db.Column(db.Text, nullable=True)
+    reference_source = db.Column(db.String(200), nullable=False)
+    reference_ayah_count = db.Column(db.Integer, nullable=False, default=0)
+    reference_fingerprint = db.Column(db.String(64), nullable=False)
+    content_sha256 = db.Column(db.String(64), nullable=False)
+    file_sha256 = db.Column(db.String(64), nullable=True)  # reported by the browser, not checked
+    total_rows = db.Column(db.Integer, nullable=False, default=0)
+    exact_matches = db.Column(db.Integer, nullable=False, default=0)
+    partial_matches = db.Column(db.Integer, nullable=False, default=0)
+    mismatches = db.Column(db.Integer, nullable=False, default=0)
+    reference_not_found = db.Column(db.Integer, nullable=False, default=0)
+    invalid_rows = db.Column(db.Integer, nullable=False, default=0)
+    missing_ayahs = db.Column(db.Integer, nullable=False, default=0)
+    accuracy_percentage = db.Column(db.Float, nullable=False, default=0)
+    issued_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {c.name: getattr(self, c.name) for c in self.__table__.columns}
+
+    def to_public_dict(self):
+        """What the public check page may show: no filename, no user."""
+        return {
+            "reference_no": self.reference_no,
+            "verification_type": self.verification_type,
+            "status": self.status,
+            "issued_at": self.issued_at.isoformat() if self.issued_at else None,
+            "scope": self.scope,
+            "reference_source": self.reference_source,
+            "content_sha256": self.content_sha256,
+            "total_rows": self.total_rows,
+            "exact_matches": self.exact_matches,
+            "partial_matches": self.partial_matches,
+            "mismatches": self.mismatches,
+            "reference_not_found": self.reference_not_found,
+            "invalid_rows": self.invalid_rows,
+            "missing_ayahs": self.missing_ayahs,
+            "accuracy_percentage": self.accuracy_percentage,
+        }

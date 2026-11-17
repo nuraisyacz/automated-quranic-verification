@@ -7,7 +7,11 @@ import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min?url';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-const allowedFiles = ['pdf', 'docx', 'txt', 'csv'];
+// CSV is not offered for Quranic Arabic text (Arabic does not display reliably in CSV files).
+const ALLOWED_BY_TYPE = {
+  translation: ['pdf', 'docx', 'txt', 'csv'],
+  quranic_text: ['pdf', 'docx', 'txt'],
+};
 
 const STATUS_LABELS = {
   accurate: 'Accurate',
@@ -20,7 +24,7 @@ const STATUS_LABELS = {
 const FLOW_CONFIG = {
   translation: {
     label: 'Translation',
-    uploadDescription: 'Upload a Quranic translation as CSV, TXT, PDF, or DOCX. CSV format is recommended (surah_number, ayah_number, translation).',
+    uploadDescription: 'Upload a Quranic translation as CSV, TXT, PDF, or DOCX. CSV format is recommended.',
     extractTitle: 'Extracted Translation CSV',
     extractDescription: 'Review the extracted translation rows below. When ready, proceed to verification.',
     contentColumn: 'Translation',
@@ -32,11 +36,13 @@ const FLOW_CONFIG = {
     stepVerifyTitle: 'Verify Translation',
     csvSuffix: 'translation',
     referenceLabel: 'Approved translation repository',
+    fileHint: 'PDF, DOCX, TXT, or CSV',
+    accept: '.pdf,.docx,.txt,.csv',
   },
   quranic_text: {
     label: 'Quranic Text',
-    uploadDescription: 'Upload Quranic Arabic text as CSV, TXT, PDF, or DOCX. CSV format is recommended (surah_number, ayah_number, arabic_text).',
-    extractTitle: 'Extracted Quranic Text CSV',
+    uploadDescription: 'Upload Quranic Arabic text as TXT, PDF, or DOCX.',
+    extractTitle: 'Extracted Quranic Text',
     extractDescription: 'Review the extracted Arabic text rows below. When ready, proceed to verification.',
     contentColumn: 'Arabic Text',
     contentField: 'arabic_text',
@@ -47,6 +53,8 @@ const FLOW_CONFIG = {
     stepVerifyTitle: 'Verify Quranic Text',
     csvSuffix: 'quranic-text',
     referenceLabel: 'Trusted Quranic text repository',
+    fileHint: 'PDF, DOCX, or TXT',
+    accept: '.pdf,.docx,.txt',
   },
 };
 
@@ -64,6 +72,7 @@ const VerifyDocumentPlaceholderPage = () => {
   const [verificationReport, setVerificationReport] = useState(null);
   const [resultFilter, setResultFilter] = useState('all');
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [downloadingCert, setDownloadingCert] = useState(false);
 
   const config = FLOW_CONFIG[verificationType] || FLOW_CONFIG.translation;
 
@@ -136,8 +145,9 @@ const VerifyDocumentPlaceholderPage = () => {
     }
 
     const extension = getFileExtension(file.name);
-    if (!allowedFiles.includes(extension)) {
-      setFileError('Unsupported file type. Please upload PDF, DOCX, TXT, or CSV.');
+    const allowed = ALLOWED_BY_TYPE[verificationType] || ALLOWED_BY_TYPE.translation;
+    if (!allowed.includes(extension)) {
+      setFileError(`Unsupported file type. Please upload ${config.fileHint}.`);
       setSelectedFile(null);
       return;
     }
@@ -182,39 +192,60 @@ const VerifyDocumentPlaceholderPage = () => {
     setSuccessMessage('');
     setVerificationReport(null);
 
+    let rawText = ''; // ✅ FIX: declare outside try so it's safe for logging
+
     try {
       const extension = getFileExtension(selectedFile.name);
       let rows = [];
 
       if (extension === 'csv') {
-        const rawCsv = await readFileAsText(selectedFile);
-        rows = parseUploadedCsv(rawCsv, verificationType);
+        rawText = await readFileAsText(selectedFile);
+        rows = parseUploadedCsv(rawText, verificationType);
       } else {
-        const rawText = await extractTextFromFile(selectedFile);
-        rows = verificationType === 'quranic_text'
-          ? parseExtractedArabicText(rawText)
-          : parseExtractedText(rawText);
+        rawText = await extractTextFromFile(selectedFile);
+
+        rows =
+          verificationType === 'quranic_text'
+            ? parseExtractedArabicText(rawText)
+            : parseExtractedText(rawText);
+
+        console.log("PARSED ROWS:", rows);
       }
 
       if (!rows.length) {
+        console.log("RAW TEXT:", rawText); // ✅ now safe
         throw new Error(
-          verificationType === 'quranic_text'
-            ? 'No extractable Quranic Arabic text found. Use CSV with columns surah_number, ayah_number, arabic_text, or a TXT file with lines like "Surah 102" then "1 <arabic text>".'
-            : 'No extractable Quranic translation found in the document.',
+          'No structured rows found. File may be scanned or unformatted.'
         );
       }
 
       const csv = buildCsv(rows, verificationType);
       setExtractedRows(rows);
       setCsvContent(csv);
-      setSuccessMessage('Extraction completed successfully.');
+
+      const hasBismillah = rows.some(r =>
+        r.arabic_text?.includes("بِسْمِ اللَّهِ")
+      );
+
+      if (hasBismillah && verificationType === 'quranic_text') {
+        setSuccessMessage(
+          'Extraction completed. Note: Bismillah handling applied for non-Fatihah surahs.'
+        );
+      } else {
+        setSuccessMessage('Extraction completed successfully.');
+      }
+
       setActiveStep(3);
+
     } catch (error) {
       setFileError(error?.message || 'Unable to extract text from the document.');
     } finally {
       setLoading(false);
     }
-  };
+
+    // ❌ REMOVE THIS (it was your bug)
+    // console.log("RAW TEXT FROM PDF:", rawText);
+};
 
   const handleVerify = async () => {
     if (!extractedRows.length) {
@@ -227,8 +258,16 @@ const VerifyDocumentPlaceholderPage = () => {
     setSuccessMessage('');
 
     try {
+      let fileSha256 = null;
+      try {
+        fileSha256 = selectedFile ? await sha256Hex(selectedFile) : null;
+      } catch {
+        fileSha256 = null; // optional; needs https or localhost
+      }
+
       const response = await axios.post(config.verifyEndpoint, {
         filename: selectedFile?.name || 'uploaded-document',
+        file_sha256: fileSha256,
         rows: extractedRows,
       });
 
@@ -267,10 +306,32 @@ const VerifyDocumentPlaceholderPage = () => {
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch {
-      setFileError('Failed to download PDF report.');
+    } catch (error) {
+      setFileError(await readDownloadError(error, 'Failed to download PDF report.'));
     } finally {
       setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadCertificate = async () => {
+    const ref = verificationReport?.certificate?.reference_no;
+    if (!ref) return;
+
+    setDownloadingCert(true);
+    setFileError('');
+
+    try {
+      const response = await axios.get(`/api/verify/certificate/${ref}/pdf`, { responseType: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }));
+      link.download = `${ref}-certificate.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      setFileError(await readDownloadError(error, 'Failed to download certificate.'));
+    } finally {
+      setDownloadingCert(false);
     }
   };
 
@@ -292,8 +353,8 @@ const VerifyDocumentPlaceholderPage = () => {
   const renderStepIndicator = () => {
     const steps = [
       { num: 1, title: 'Choose Type', subtitle: 'Translation or text' },
-      { num: 2, title: 'Upload Document', subtitle: 'PDF, DOCX or TXT' },
-      { num: 3, title: 'Extract Text', subtitle: 'Generate CSV' },
+      { num: 2, title: 'Upload Document', subtitle: verificationType === 'quranic_text' ? 'PDF, DOCX or TXT' : 'PDF, DOCX, TXT or CSV' },
+      { num: 3, title: 'Extract Text', subtitle: verificationType === 'quranic_text' ? 'Review text' : 'Generate CSV' },
       { num: 4, title: config.stepVerifyTitle, subtitle: 'Compare with reference' },
       { num: 5, title: 'Generate Report', subtitle: 'View and download' },
     ];
@@ -360,11 +421,6 @@ const VerifyDocumentPlaceholderPage = () => {
 
       <div className="reference-info-banner">
         Verification type: <strong>{config.label}</strong>
-        {verificationType === 'quranic_text' && (
-          <span>
-            {' '}— Recommended: upload a CSV with columns <code>surah_number</code>, <code>ayah_number</code>, <code>arabic_text</code>.
-          </span>
-        )}
       </div>
 
       <div className="file-drop-area">
@@ -377,12 +433,12 @@ const VerifyDocumentPlaceholderPage = () => {
         >
           <div>
             <strong>Drag & drop a file here</strong>
-            <p>PDF, DOCX, TXT, or CSV</p>
+            <p>{config.fileHint}</p>
           </div>
           <input
             id="verify-file-input"
             type="file"
-            accept=".pdf,.docx,.txt,.csv"
+            accept={config.accept}
             onChange={handleInputChange}
             hidden
           />
@@ -472,9 +528,11 @@ const VerifyDocumentPlaceholderPage = () => {
           ← Back to Upload
         </button>
         <div className="csv-actions">
-          <button type="button" className="btn btn-secondary" onClick={downloadCsv} disabled={!csvContent}>
-            Download CSV
-          </button>
+          {verificationType !== 'quranic_text' && (
+            <button type="button" className="btn btn-secondary" onClick={downloadCsv} disabled={!csvContent}>
+              Download CSV
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary"
@@ -535,6 +593,12 @@ const VerifyDocumentPlaceholderPage = () => {
             <div className="stat-value">{summary.reference_not_found ?? 0}</div>
             <div className="stat-label">No Reference</div>
           </div>
+        {verificationType === 'quranic_text' && (
+          <div className="summary-stat-card">
+            <div className="stat-value">{summary.missing_ayahs ?? 0}</div>
+            <div className="stat-label">Missing Ayahs</div>
+          </div>
+        )}
         </div>
 
         <div className="verification-filter-row">
@@ -641,6 +705,17 @@ const VerifyDocumentPlaceholderPage = () => {
           <p><strong>Total Rows:</strong> {verificationReport?.document?.total_rows ?? 0}</p>
         </div>
 
+        {verificationReport?.certificate && (
+          <div className="reference-info-banner">
+            Certificate reference: <strong>{verificationReport.certificate.reference_no}</strong>
+          </div>
+        )}
+        {!verificationReport?.certificate && (
+          <div className="reference-info-banner">
+            No certificate was issued. A certificate is only issued when every row is 100% accurate.
+          </div>
+        )}
+
         <div className={`verification-status-banner ${status}`}>
           <span>Verification Status: {STATUS_LABELS[status] || status}</span>
           <span>Accuracy: {summary.accuracy_percentage ?? 0}%</span>
@@ -663,7 +738,24 @@ const VerifyDocumentPlaceholderPage = () => {
             <div className="stat-value">{summary.reference_not_found ?? 0}</div>
             <div className="stat-label">No Reference Found</div>
           </div>
+        {verificationType === 'quranic_text' && (
+          <div className="summary-stat-card">
+            <div className="stat-value">{summary.missing_ayahs ?? 0}</div>
+            <div className="stat-label">Missing Ayahs</div>
+          </div>
+        )}
         </div>
+
+        {verificationReport?.coverage?.missing_count > 0 && (
+          <div className="alert alert-danger">
+            <strong>{verificationReport.coverage.missing_count} ayah(s) missing from the document:</strong>{' '}
+            {verificationReport.coverage.missing
+              .slice(0, 20)
+              .map((m) => `${m.surah_number}:${m.ayah_number}`)
+              .join(', ')}
+            {verificationReport.coverage.missing_count > 20 ? ', …' : ''}
+          </div>
+        )}
 
         <h4 style={{ marginBottom: '0.75rem' }}>Mismatch Details</h4>
         {mismatchDetails.length === 0 ? (
@@ -710,6 +802,16 @@ const VerifyDocumentPlaceholderPage = () => {
           >
             {downloadingPdf ? 'Generating PDF...' : 'Download PDF Report'}
           </button>
+          {verificationReport?.certificate && (
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleDownloadCertificate}
+              disabled={downloadingCert}
+            >
+              {downloadingCert ? 'Generating certificate...' : 'Download Certificate'}
+            </button>
+          )}
           <button type="button" className="btn btn-secondary" onClick={resetPage}>
             Verify Another Document
           </button>
@@ -767,6 +869,28 @@ const formatDate = (iso) => {
 
 const getFileExtension = (fileName) => fileName.split('.').pop().toLowerCase();
 
+// For requests made with responseType 'blob', an error body arrives as a Blob. Read the message from it.
+const readDownloadError = async (error, fallback) => {
+  try {
+    if (!error?.response) return `${fallback} Cannot reach the server.`;
+    let data = error.response.data;
+    if (data instanceof Blob) {
+      const text = await data.text();
+      try { data = JSON.parse(text); } catch { data = { message: text.slice(0, 200) }; }
+    }
+    const detail = data?.message || data?.msg || '';
+    return detail ? `${fallback} ${detail}` : `${fallback} (server error ${error.response.status})`;
+  } catch {
+    return fallback;
+  }
+};
+
+const sha256Hex = async (file) => {
+  const buf = await file.arrayBuffer();
+  const digest = await crypto.subtle.digest('SHA-256', buf); // needs https or localhost
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+};
+
 const formatFileSize = (bytes) => {
   if (bytes < 1024) return `${bytes} bytes`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -788,16 +912,35 @@ const extractTextFromFile = async (file) => {
   throw new Error('Unsupported file type.');
 };
 
+// const extractTextFromPdf = async (arrayBuffer) => {
+//   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+//   const pdf = await loadingTask.promise;
+//   let text = '';
+//   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+//     const page = await pdf.getPage(pageNumber);
+//     const content = await page.getTextContent();
+//     const pageText = content.items.map((item) => item.str).join(' ');
+//     text += `${pageText}\n`;
+//   }
+//   return text;
+// };
 const extractTextFromPdf = async (arrayBuffer) => {
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdf = await loadingTask.promise;
+
   let text = '';
+
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
     const page = await pdf.getPage(pageNumber);
     const content = await page.getTextContent();
-    const pageText = content.items.map((item) => item.str).join(' ');
+
+    const pageText = content.items
+      .map((item) => item.str)
+      .join(' ');
+
     text += `${pageText}\n`;
   }
+
   return text;
 };
 
@@ -865,32 +1008,73 @@ const parseCsvLine = (line) => {
 };
 
 const parseUploadedCsv = (csvText, verificationType) => {
-  const contentField = verificationType === 'quranic_text' ? 'arabic_text' : 'translation';
-  const lines = csvText.replace(/^\uFEFF/, '').split(/\r?\n/).filter((line) => line.trim());
+  const contentField =
+    verificationType === 'quranic_text' ? 'arabic_text' : 'translation';
+
+  const lines = csvText
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/)
+    .filter((line) => line.trim());
+
   if (lines.length < 2) return [];
 
   const headers = parseCsvLine(lines[0]).map((h) => h.trim().toLowerCase());
-  const surahIdx = headers.findIndex((h) => h === 'surah_number' || h === 'surah');
-  const ayahIdx = headers.findIndex((h) => h === 'ayah_number' || h === 'ayah');
-  const contentIdx = headers.findIndex((h) => (
-    h === contentField || h === 'translation' || h === 'arabic_text' || h === 'text'
-  ));
+
+  const surahIdx = headers.findIndex(
+    (h) => h === 'surah_number' || h === 'surah'
+  );
+  const ayahIdx = headers.findIndex(
+    (h) => h === 'ayah_number' || h === 'ayah'
+  );
+  const contentIdx = headers.findIndex(
+    (h) =>
+      h === contentField ||
+      (verificationType === 'translation' && h === 'translation') ||
+      (verificationType === 'quranic_text' && h === 'arabic_text')
+  );
 
   if (surahIdx === -1 || ayahIdx === -1 || contentIdx === -1) {
     return [];
   }
 
   const rows = [];
+
   for (let i = 1; i < lines.length; i += 1) {
     const cols = parseCsvLine(lines[i]);
     if (!cols.length) continue;
 
     const surah = normalizeWesternDigits(cols[surahIdx] || '').trim();
     const ayah = normalizeWesternDigits(cols[ayahIdx] || '').trim();
-    const content = (cols[contentIdx] || '').trim();
+    let content = (cols[contentIdx] || '').trim();
 
-    if (!surah || !ayah || !content) continue;
-    if (verificationType === 'quranic_text' && !hasArabicChars(content)) continue;
+    // if (!surah || !ayah || !content) continue;
+    if (!ayah || !content) continue;
+
+    if (
+      verificationType === 'quranic_text' &&
+      !hasArabicChars(content)
+    ) {
+      continue;
+    }
+
+    // ONLY CLEAN, DO NOT DELETE ANY ROW
+    if (verificationType === 'quranic_text') {
+      const normalized = normalizeArabic(content);
+
+      // const isBismillah = (text = '') => {
+      //   const t = normalizeArabic(text);
+      //   return (
+      //     t.includes('بسم') &&
+      //     t.includes('الله') &&
+      //     t.includes('الرحمن') &&
+      //     t.includes('الرحيم')
+      //   );
+      // };
+
+      // ❌ DO NOT remove row
+      // ✔ only normalize formatting if needed
+      content = normalized.replace(/\s+/g, ' ').trim();
+    }
 
     rows.push({
       surah_number: surah,
@@ -902,26 +1086,69 @@ const parseUploadedCsv = (csvText, verificationType) => {
   return rows;
 };
 
+// Light clean only. Do NOT remove diacritics here; the backend compares them.
+const normalizeArabic = (text = '') =>
+  text
+    .normalize('NFC')
+    .replace(/[\u200B-\u200F\uFEFF]/g, '')
+    .replace(/\u00A0/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+// Whole-line basmalah only (the old check matched any text containing "بسم").
+const stripMarks = (t = '') =>
+  t.replace(/[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]/g, '')
+    .replace(/\u0640/g, '')
+    .replace(/[إأآٱ]/g, 'ا')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const isBismillah = (t = '') => stripMarks(t) === 'بسم الله الرحمن الرحيم';
+
+// In Al-Fatihah the basmalah IS ayah 1, so it must not be dropped there.
+const skipBasmalah = (t, surah) => isBismillah(t) && String(surah) !== '1';
+
 const parseStructuredRows = (rawText, contentField, cleanFn) => {
+  const SURAH_MAP = {
+    "Al-Fatiha": 1,
+    "Al-Baqarah": 2,
+    "Al-Ikhlas": 112,
+    "An-Nas": 114,
+  };
+
   const lines = rawText
     .replace(/\uFEFF/g, '')
     .replace(/\u00A0/g, ' ')
     .split(/\r?\n/)
-    .map((line) => line.trim())
+    .map(l => l.trim())
     .filter(Boolean);
 
   const rows = [];
   let currentSurah = '';
 
-  lines.forEach((line) => {
-    let text = normalizeWesternDigits(line.replace(/\s{2,}/g, ' ').trim());
-    if (!text) return;
+  for (const line of lines) {
+    let text = normalizeWesternDigits(
+      line.replace(/\s{2,}/g, ' ').trim()
+    );
 
-    const surahOnlyMatch = text.match(/^(?:Surah|Sura|سورة)\s*(\d+)$/i);
-    if (surahOnlyMatch) {
-      currentSurah = surahOnlyMatch[1];
-      return;
+    if (!text) continue;
+
+    // Skip Bismillah immediately (RAW check)
+    if (contentField === 'arabic_text' && skipBasmalah(text, currentSurah)) {
+      continue;
     }
+
+    // Surah header
+    const surahMatch = text.match(/^Surah\s+(.+)$/i);
+    if (surahMatch) {
+      const name = surahMatch[1].trim();
+        currentSurah = SURAH_MAP[name] || name;
+      continue;
+    }
+    const surahNumberOnly = text.match(/^(\d{1,3})\s+/);
+      if (surahNumberOnly && !currentSurah) {
+        currentSurah = surahNumberOnly[1];
+      }
 
     let surah = '';
     let ayah = '';
@@ -935,61 +1162,110 @@ const parseStructuredRows = (rawText, contentField, cleanFn) => {
       /^(\d+)\s*[-–]\s*(.*)$/,
     ];
 
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match) {
-        if (pattern === patterns[0]) {
-          surah = match[1] || currentSurah;
-          ayah = match[2];
-          content = match[3];
-        } else if (pattern === patterns[1] || pattern === patterns[2]) {
-          surah = match[1];
-          ayah = match[2];
-          content = match[3];
-          currentSurah = surah;
-        } else {
-          ayah = match[1];
-          content = match[2];
-          surah = currentSurah;
-        }
-        break;
-      }
-    }
+    for (const p of patterns) {
+      const m = text.match(p);
+      if (!m) continue;
 
-    if (!content) {
-      const singleNumberMatch = text.match(/^(\d+)\s+(.+)$/);
-      if (singleNumberMatch) {
-        ayah = singleNumberMatch[1];
-        content = singleNumberMatch[2];
+      if (p === patterns[0]) {
+        surah = m[1] || currentSurah;
+        ayah = m[2];
+        content = m[3];
+      } else if (p === patterns[1] || p === patterns[2]) {
+        surah = m[1];
+        ayah = m[2];
+        content = m[3];
+        currentSurah = surah;
+      } else {
+        ayah = m[1];
+        content = m[2];
         surah = currentSurah;
       }
+      break;
     }
 
-    const cleanedText = cleanFn(content || text);
-    if (!cleanedText) return;
+    // fallback
+    if (!content) {
+      const m = text.match(/^(\d+)\s+(.+)$/);
+      if (m) {
+        ayah = m[1];
+        content = m[2];
+        const ayahMatch = text.match(/^(\d+)\.\s*(.+)$/);
 
-    if (contentField === 'arabic_text' && !hasArabicChars(cleanedText)) {
-      return;
+        if (ayahMatch) {
+          rows.push({
+            surah_number: currentSurah,
+            ayah_number: ayahMatch[1],
+            arabic_text: ayahMatch[2].trim(),
+          });
+          continue;
+        }
+      }
     }
 
-    if (!ayah && !surah && contentField === 'arabic_text') {
-      return;
+    let cleaned = normalizeArabic(cleanFn(content || text));
+    if (!cleaned) continue;
+
+    // Arabic-specific rules
+    if (contentField === 'arabic_text') {
+      // strip Bismillah if embedded
+      if (!cleaned) continue;
+
+      // final hard reject
+      if (skipBasmalah(cleaned, surah || currentSurah)) continue;
+
+      const hasArabic = /[\u0600-\u06FF]/.test(cleaned);
+      if (!hasArabic || cleaned.length < 3) continue;
     }
 
-    const isContinuation = !ayah && !surah && rows.length > 0
-      && !/^(Surah|Sura|Ayah|Ayat|Verse)\b/i.test(text);
+    // continuation handling
+    const isContinuation =
+      !ayah &&
+      !surah &&
+      rows.length > 0 &&
+      !/^(Surah|Sura|Ayah|Ayat|Verse)\b/i.test(text);
+
     if (isContinuation) {
       const last = rows[rows.length - 1];
-      last[contentField] = cleanFn(`${last[contentField]} ${cleanedText}`);
-      return;
+      last[contentField] = normalizeArabic(
+        cleanFn(`${last[contentField]} ${cleaned}`)
+      );
+      continue;
+    }
+
+    // FINAL GUARD: never allow Bismillah as a row
+    if (contentField === 'arabic_text' && skipBasmalah(cleaned, surah || currentSurah)) {
+      continue;
     }
 
     rows.push({
-      surah_number: surah || '',
+      surah_number: surah || currentSurah || '',
       ayah_number: ayah || '',
-      [contentField]: cleanedText,
+      [contentField]: cleaned,
     });
-  });
+  }
+
+  if (rows.length === 0) {
+    console.warn("Falling back to unstructured mode");
+
+    const lines = rawText
+      .split(/\r?\n/)
+      .map(l => l.trim())
+      .filter(Boolean);
+
+    let ayahCounter = 1;
+
+    for (const line of lines) {
+      const cleaned = cleanFn(line);
+
+      if (!cleaned || cleaned.length < 2) continue;
+
+      rows.push({
+        surah_number: currentSurah || '',
+        ayah_number: String(ayahCounter++),
+        [contentField]: cleaned,
+      });
+    }
+  }
 
   return rows;
 };
@@ -998,7 +1274,7 @@ const parseExtractedText = (rawText) => parseStructuredRows(rawText, 'translatio
 
 const parseExtractedArabicText = (rawText) => parseStructuredRows(rawText, 'arabic_text', cleanArabicText);
 
-const buildCsv = (rows, type) => {
+const buildCsv = (rows, type = 'translation') => {
   const contentField = type === 'quranic_text' ? 'arabic_text' : 'translation';
   const header = `surah_number,ayah_number,${contentField}`;
   const lines = rows.map((row) => {

@@ -1,5 +1,5 @@
-print("🔥 dashboard_routes.py LOADED")
-
+import csv
+import os
 import psycopg2
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
@@ -28,6 +28,10 @@ def get_conn():
 @dashboard_bp.route('/dashboard', methods=['GET'])
 @jwt_required()
 def get_dashboard():
+    """
+    GET /api/dashboard
+    Protected route returning welcome information.
+    """
     current_user_id = get_jwt_identity()
     user = User.query.get(current_user_id)
 
@@ -36,6 +40,7 @@ def get_dashboard():
 
     return jsonify({
         'welcome_message': f"Welcome, {user.full_name}",
+        'description': "This system helps verify digital Quranic text and translations using trusted reference data.",
         'user': user.to_dict()
     }), 200
 
@@ -46,6 +51,10 @@ def get_dashboard():
 @dashboard_bp.route('/verify-document', methods=['GET'])
 @jwt_required()
 def verify_document_placeholder():
+    """
+    GET /api/verify-document
+    Protected placeholder route.
+    """
     return jsonify({
         'message': 'Document verification module will be developed in the next phase.'
     }), 200
@@ -59,14 +68,15 @@ def verify_document_placeholder():
 def search_quranic_text():
 
     try:
-        print("🔥 FUNCTION HIT")
 
         juz = request.args.get('juz_number', type=int)
+        surah = request.args.get('surah_number', type=int)
+        ayah = request.args.get('ayah_number', type=int)
 
-        if juz is None:
+        if juz is None and surah is None and ayah is None:
             return jsonify({
                 "success": False,
-                "message": "juz_number required"
+                "message": "Provide juz_number, surah_number or ayah_number"
             }), 400
 
         conn = get_conn()
@@ -80,13 +90,36 @@ def search_quranic_text():
 
         print("SEARCHING JUZ:", juz)
 
-        cur.execute("""
+        query = """
             SELECT id, juz_number, surah_number, surah_name,
-                   ayah_number, arabic_text
+                ayah_number, arabic_text
             FROM quran_arabic_text
-            WHERE juz_number = %s
-            ORDER BY surah_number, ayah_number
-        """, (juz,))
+        """
+
+        conditions = []
+        params = []
+
+        if juz is not None:
+            conditions.append("juz_number = %s")
+            params.append(juz)
+
+        if surah is not None:
+            conditions.append("surah_number = %s")
+            params.append(surah)
+
+        if ayah is not None:
+            conditions.append("ayah_number = %s")
+            params.append(ayah)
+
+        if conditions:
+            query += " WHERE " + " AND ".join(conditions)
+
+        query += " ORDER BY surah_number, ayah_number"
+
+        print(query)
+        print(params)
+
+        cur.execute(query, params)
 
         rows = cur.fetchall()
 

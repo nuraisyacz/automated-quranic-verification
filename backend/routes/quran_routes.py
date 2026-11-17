@@ -50,7 +50,11 @@ def import_csv():
             surah_number = int(surah_raw) if surah_raw and str(surah_raw).strip() != '' else None
             ayah_number = int(ayah_raw) if ayah_raw and str(ayah_raw).strip() != '' else None
 
-            if surah_number is None or ayah_number is None or translation == '':
+            if not validate_translation_row({
+                "surah_number": surah_number,
+                "ayah_number": ayah_number,
+                "translation": translation
+            }):
                 skipped += 1
                 continue
 
